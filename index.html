@@ -94,6 +94,33 @@
       transform: translateX(2px);
     }
 
+    #mobileMenuToggle {
+      display: none;
+      position: fixed;
+      right: 12px;
+      bottom: 12px;
+      z-index: 40;
+      border: 1px solid rgba(133, 160, 210, 0.52);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.92);
+      color: #193760;
+      font-weight: 700;
+      font-size: 13px;
+      padding: 10px 14px;
+      box-shadow: 0 10px 24px rgba(25, 52, 93, 0.2);
+      backdrop-filter: blur(10px) saturate(120%);
+      transition: transform 120ms ease, background 120ms ease;
+    }
+
+    #mobileMenuToggle.active {
+      background: #e7f2ff;
+      border-color: rgba(58, 132, 220, 0.62);
+    }
+
+    #mobileMenuToggle:active {
+      transform: translateY(1px);
+    }
+
     .panel-scroll {
       overflow: auto;
       padding: 14px;
@@ -490,6 +517,11 @@
         top: 8px;
         max-width: min(55vw, 360px);
       }
+
+      #mobileMenuToggle {
+        display: inline-flex;
+        align-items: center;
+      }
     }
   </style>
 </head>
@@ -611,6 +643,8 @@
       </div>
     </aside>
 
+    <button id="mobileMenuToggle" title="Toggle menu" aria-label="Toggle menu" aria-expanded="true">Hide Menu</button>
+
     <div id="floatingHud">
       <div class="hud-card" id="statsHud"><strong>0</strong> selected • <strong>0</strong> bricks • <strong>0</strong> undo</div>
       <div class="hud-card">Shortcuts: <span class="mono">Q/E</span> rotate, <span class="mono">Shift+Drag</span> box select, <span class="mono">Cmd/Ctrl+C/V</span> copy/paste, <span class="mono">Del</span> delete, <span class="mono">Cmd/Ctrl+Z/Y</span> undo/redo, <span class="mono">Right Drag</span> rotate ghost.</div>
@@ -645,6 +679,7 @@
       canvas: document.getElementById("viewport"),
       panel: document.getElementById("panel"),
       collapseBtn: document.getElementById("collapseBtn"),
+      mobileMenuToggle: document.getElementById("mobileMenuToggle"),
       toolPlace: document.getElementById("toolPlace"),
       toolPaint: document.getElementById("toolPaint"),
       toolSelect: document.getElementById("toolSelect"),
@@ -852,6 +887,7 @@
       refreshHistoryButtons();
       refreshCounts();
       refreshStrictBadge();
+      setPanelCollapsed(false);
 
       attachEvents();
 
@@ -2782,10 +2818,30 @@
       return getBrickFromHitObject(hit.object);
     }
 
+    function isMobileViewport() {
+      return window.matchMedia("(max-width: 880px)").matches;
+    }
+
+    function setPanelCollapsed(collapsed) {
+      ui.panel.classList.toggle("collapsed", collapsed);
+      const isCollapsed = ui.panel.classList.contains("collapsed");
+      ui.collapseBtn.textContent = isCollapsed ? "❯" : "❮";
+      ui.mobileMenuToggle.textContent = isCollapsed ? "Show Menu" : "Hide Menu";
+      ui.mobileMenuToggle.classList.toggle("active", !isCollapsed);
+      ui.mobileMenuToggle.setAttribute("aria-expanded", String(!isCollapsed));
+    }
+
     function attachEvents() {
       ui.collapseBtn.addEventListener("click", () => {
-        ui.panel.classList.toggle("collapsed");
-        ui.collapseBtn.textContent = ui.panel.classList.contains("collapsed") ? "❯" : "❮";
+        setPanelCollapsed(!ui.panel.classList.contains("collapsed"));
+      });
+
+      ui.mobileMenuToggle.addEventListener("click", () => {
+        const nextCollapsed = !ui.panel.classList.contains("collapsed");
+        setPanelCollapsed(nextCollapsed);
+        if (isMobileViewport()) {
+          setStatus(nextCollapsed ? "Menu hidden. Tap Show Menu to bring it back." : "Menu visible. Tap Hide Menu for a bigger build view.");
+        }
       });
 
       ui.tabButtons.forEach((btn) => {
@@ -3045,6 +3101,9 @@
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
+      if (!isMobileViewport() && ui.panel.classList.contains("collapsed")) {
+        setPanelCollapsed(false);
+      }
     }
 
     function animate(ts = performance.now()) {
