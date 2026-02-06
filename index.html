@@ -1,0 +1,3063 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LEGO 3D Editor</title>
+  <style>
+    :root {
+      --bg: #dfeaff;
+      --bg-panel: rgba(255, 255, 255, 0.82);
+      --bg-panel-strong: rgba(255, 255, 255, 0.94);
+      --ink: #0f1a2b;
+      --ink-soft: #4a5972;
+      --accent: #0d78ff;
+      --accent-soft: #d8eaff;
+      --danger: #f03e53;
+      --ok: #23a46a;
+      --radius: 14px;
+      --shadow: 0 18px 36px rgba(17, 40, 78, 0.16);
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    html,
+    body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(1100px 650px at 15% -12%, rgba(120, 194, 255, 0.36), transparent 60%),
+        radial-gradient(900px 560px at 85% 8%, rgba(255, 179, 140, 0.32), transparent 64%),
+        linear-gradient(180deg, #e9f3ff 0%, #d6e5ff 100%);
+    }
+
+    #app {
+      position: fixed;
+      inset: 0;
+    }
+
+    #viewport {
+      width: 100%;
+      height: 100%;
+      display: block;
+      outline: none;
+      cursor: crosshair;
+    }
+
+    #panel {
+      position: fixed;
+      left: 14px;
+      top: 14px;
+      bottom: 14px;
+      width: 356px;
+      background: var(--bg-panel);
+      border: 1px solid rgba(255, 255, 255, 0.75);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(14px) saturate(115%);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transform: translateX(0);
+      transition: transform 180ms ease;
+      z-index: 10;
+    }
+
+    #panel.collapsed {
+      transform: translateX(calc(-100% - 12px));
+    }
+
+    #collapseBtn {
+      position: absolute;
+      right: -42px;
+      top: 10px;
+      width: 34px;
+      height: 34px;
+      border: 0;
+      border-radius: 10px;
+      background: var(--bg-panel-strong);
+      color: var(--ink);
+      box-shadow: var(--shadow);
+      cursor: pointer;
+      transition: transform 140ms ease;
+    }
+
+    #collapseBtn:hover {
+      transform: translateX(2px);
+    }
+
+    .panel-scroll {
+      overflow: auto;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      height: 100%;
+    }
+
+    .title {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 4px 2px;
+    }
+
+    .title h1 {
+      margin: 0;
+      font-size: 20px;
+      letter-spacing: 0.01em;
+      font-weight: 760;
+    }
+
+    .title small {
+      color: var(--ink-soft);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .card {
+      background: var(--bg-panel-strong);
+      border: 1px solid rgba(160, 183, 220, 0.35);
+      border-radius: var(--radius);
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+    }
+
+    .row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .row.tight {
+      gap: 6px;
+    }
+
+    .label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--ink-soft);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    button,
+    select,
+    input[type="text"],
+    input[type="number"] {
+      border: 1px solid rgba(133, 160, 210, 0.45);
+      background: #ffffff;
+      color: var(--ink);
+      border-radius: 10px;
+      padding: 7px 10px;
+      font-size: 13px;
+      font-family: inherit;
+    }
+
+    button {
+      cursor: pointer;
+      font-weight: 600;
+      transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 18px rgba(27, 58, 101, 0.15);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    .primary {
+      background: linear-gradient(180deg, #2f95ff 0%, #0d78ff 100%);
+      color: #fff;
+      border-color: #1c79e5;
+    }
+
+    .danger {
+      background: linear-gradient(180deg, #ff677d 0%, #ef3f56 100%);
+      color: #fff;
+      border-color: #e02e47;
+    }
+
+    .ghost {
+      background: rgba(255, 255, 255, 0.62);
+    }
+
+    .tiny {
+      padding: 5px 8px;
+      font-size: 12px;
+      border-radius: 9px;
+    }
+
+    .tool-btn {
+      flex: 1;
+      text-align: center;
+      font-size: 12px;
+    }
+
+    .tool-btn.active {
+      background: var(--accent-soft);
+      border-color: rgba(58, 132, 220, 0.6);
+      box-shadow: inset 0 0 0 1px rgba(58, 132, 220, 0.35);
+    }
+
+    .swatches {
+      display: grid;
+      grid-template-columns: repeat(8, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    .swatch {
+      aspect-ratio: 1;
+      border-radius: 8px;
+      border: 2px solid rgba(255, 255, 255, 0.8);
+      box-shadow: 0 4px 9px rgba(28, 54, 92, 0.22);
+      position: relative;
+      cursor: pointer;
+      transition: transform 120ms ease;
+    }
+
+    .swatch:hover {
+      transform: translateY(-1px) scale(1.03);
+    }
+
+    .swatch.active::after {
+      content: "";
+      position: absolute;
+      inset: 2px;
+      border-radius: 5px;
+      border: 2px solid #ffffff;
+      box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.45);
+    }
+
+    .tabs {
+      display: flex;
+      gap: 6px;
+    }
+
+    .tab-btn {
+      flex: 1;
+      font-size: 12px;
+      padding: 7px;
+    }
+
+    .tab-btn.active {
+      background: var(--accent-soft);
+      border-color: rgba(58, 132, 220, 0.55);
+    }
+
+    .tab {
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 130px;
+    }
+
+    .tab.active {
+      display: flex;
+    }
+
+    #partsGrid {
+      max-height: 260px;
+      overflow: auto;
+      border-radius: 10px;
+      border: 1px solid rgba(133, 160, 210, 0.35);
+      background: #f8fbff;
+      padding: 8px;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    .part-btn {
+      text-align: left;
+      padding: 7px 8px;
+      border-radius: 9px;
+      font-size: 12px;
+      line-height: 1.2;
+      min-height: 44px;
+    }
+
+    .part-btn .kind {
+      display: block;
+      font-size: 10px;
+      color: var(--ink-soft);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 2px;
+    }
+
+    .part-btn.active {
+      background: linear-gradient(180deg, #dff0ff 0%, #cce6ff 100%);
+      border-color: rgba(58, 132, 220, 0.62);
+    }
+
+    .part-btn.dragging {
+      box-shadow: inset 0 0 0 1px rgba(13, 120, 255, 0.55);
+      background: #e8f4ff;
+    }
+
+    #projectsList {
+      max-height: 260px;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding-right: 2px;
+    }
+
+    .project-card {
+      display: flex;
+      gap: 8px;
+      border: 1px solid rgba(133, 160, 210, 0.35);
+      border-radius: 10px;
+      background: #f9fcff;
+      padding: 7px;
+    }
+
+    .project-thumb {
+      width: 88px;
+      height: 58px;
+      border-radius: 7px;
+      object-fit: cover;
+      background: linear-gradient(135deg, #d0e4ff, #f3f8ff);
+      border: 1px solid rgba(130, 156, 196, 0.35);
+      flex-shrink: 0;
+    }
+
+    .project-meta {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      justify-content: center;
+    }
+
+    .project-name {
+      font-size: 13px;
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .project-time {
+      font-size: 11px;
+      color: var(--ink-soft);
+    }
+
+    .template-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      max-height: 260px;
+      overflow: auto;
+      padding-right: 2px;
+    }
+
+    .template-card {
+      border-radius: 11px;
+      border: 1px solid rgba(133, 160, 210, 0.38);
+      background: #f8fcff;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      min-height: 106px;
+    }
+
+    .template-card strong {
+      font-size: 13px;
+      line-height: 1.15;
+    }
+
+    .template-card span {
+      font-size: 11px;
+      color: var(--ink-soft);
+      line-height: 1.2;
+      flex: 1;
+    }
+
+    .hint {
+      font-size: 11px;
+      color: var(--ink-soft);
+      line-height: 1.35;
+    }
+
+    .status {
+      margin-top: auto;
+      border-radius: 10px;
+      background: #f0f6ff;
+      border: 1px solid rgba(145, 167, 204, 0.35);
+      padding: 9px;
+      font-size: 12px;
+      line-height: 1.25;
+      color: #1e365c;
+      min-height: 48px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-size: 11px;
+      font-weight: 700;
+      border: 1px solid rgba(120, 144, 184, 0.5);
+      background: rgba(255, 255, 255, 0.85);
+      color: #34527d;
+    }
+
+    .pill.ok {
+      color: #1c6e4a;
+      border-color: rgba(58, 170, 113, 0.45);
+      background: #ecf9f2;
+    }
+
+    .pill.warn {
+      color: #924b21;
+      border-color: rgba(220, 145, 88, 0.55);
+      background: #fff4ea;
+    }
+
+    #selectionBox {
+      position: fixed;
+      border: 1px dashed rgba(13, 120, 255, 0.9);
+      background: rgba(13, 120, 255, 0.15);
+      pointer-events: none;
+      display: none;
+      z-index: 50;
+      border-radius: 6px;
+    }
+
+    #floatingHud {
+      position: fixed;
+      right: 16px;
+      top: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 6;
+      max-width: min(48vw, 470px);
+    }
+
+    .hud-card {
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.84);
+      border: 1px solid rgba(175, 195, 226, 0.52);
+      box-shadow: 0 10px 24px rgba(25, 52, 93, 0.14);
+      backdrop-filter: blur(10px) saturate(120%);
+      padding: 9px 12px;
+      font-size: 12px;
+      color: #234169;
+      line-height: 1.3;
+    }
+
+    .hud-card strong {
+      color: #123058;
+    }
+
+    .mono {
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+    }
+
+    @media (max-width: 880px) {
+      #panel {
+        width: min(88vw, 360px);
+        left: 8px;
+        top: 8px;
+        bottom: 8px;
+      }
+
+      #floatingHud {
+        right: 8px;
+        top: 8px;
+        max-width: min(55vw, 360px);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <canvas id="viewport"></canvas>
+
+    <aside id="panel">
+      <button id="collapseBtn" title="Collapse panel">❮</button>
+      <div class="panel-scroll">
+        <div class="title">
+          <h1>Brick Atelier 3D</h1>
+          <small id="brickCountLabel">0 bricks</small>
+        </div>
+
+        <div class="card">
+          <div class="label">Tool</div>
+          <div class="row tight">
+            <button id="toolPlace" class="tool-btn active">Place</button>
+            <button id="toolPaint" class="tool-btn">Paint</button>
+            <button id="toolSelect" class="tool-btn">Select</button>
+          </div>
+          <div class="row tight">
+            <button id="undoBtn" class="tiny ghost">Undo</button>
+            <button id="redoBtn" class="tiny ghost">Redo</button>
+            <button id="copyBtn" class="tiny ghost">Copy</button>
+            <button id="pasteBtn" class="tiny ghost">Paste</button>
+            <button id="deleteBtn" class="tiny ghost">Delete</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="row" style="justify-content: space-between; align-items: flex-start;">
+            <div>
+              <div class="label">Placement</div>
+              <div id="activePartName" style="font-size: 13px; font-weight: 700; margin-top: 3px;">Brick 2x4</div>
+            </div>
+            <div id="strictBadge" class="pill ok">Stud Snap: ON</div>
+          </div>
+          <div class="row tight">
+            <button id="rotateLeftBtn" class="tiny">Q Rotate</button>
+            <button id="rotateRightBtn" class="tiny">E Rotate</button>
+          </div>
+          <div class="row" style="justify-content: space-between;">
+            <label class="row tight" style="font-size: 12px;">
+              <input id="gridSnapToggle" type="checkbox" checked />
+              Grid + Plate Snap
+            </label>
+            <label class="row tight" style="font-size: 12px;">
+              <input id="angleSnapToggle" type="checkbox" checked />
+              Angle Snap
+            </label>
+          </div>
+          <div class="row" style="justify-content: space-between;">
+            <label class="row tight" style="font-size: 12px;">
+              Baseplate
+              <select id="baseplateSelect">
+                <option value="16">16 x 16</option>
+                <option value="24">24 x 24</option>
+                <option value="32" selected>32 x 32</option>
+                <option value="48">48 x 48</option>
+                <option value="64">64 x 64</option>
+              </select>
+            </label>
+            <button id="clearBtn" class="tiny danger">Clear Scene</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="label">LEGO-like Colors</div>
+          <div id="swatches" class="swatches"></div>
+        </div>
+
+        <div class="card">
+          <div class="tabs">
+            <button class="tab-btn active" data-tab="parts">Parts</button>
+            <button class="tab-btn" data-tab="projects">Projects</button>
+            <button class="tab-btn" data-tab="templates">Templates</button>
+          </div>
+
+          <div class="tab active" id="tab-parts">
+            <div class="row tight">
+              <input id="partSearch" type="text" placeholder="Search: 2x4, technic, slope..." style="flex:1;" />
+              <select id="partCategory" style="min-width: 110px;">
+                <option value="favorites">Favorites</option>
+                <option value="brick">Bricks</option>
+                <option value="plate">Plates</option>
+                <option value="tile">Tiles</option>
+                <option value="slope">Slopes</option>
+                <option value="technic">Technic</option>
+                <option value="minifig">Minifig</option>
+                <option value="all">All</option>
+              </select>
+            </div>
+            <div id="partsGrid"></div>
+            <div class="hint">Drag any part onto the viewport for ghost placement, then click to place.</div>
+          </div>
+
+          <div class="tab" id="tab-projects">
+            <div class="row tight">
+              <input id="saveName" type="text" placeholder="Project name" style="flex:1;" />
+              <button id="saveProjectBtn" class="primary tiny">Save</button>
+            </div>
+            <div class="row tight">
+              <button id="exportJsonBtn" class="tiny ghost">Export JSON</button>
+              <button id="importJsonBtn" class="tiny ghost">Import JSON</button>
+              <input id="importJsonInput" type="file" accept="application/json,.json" style="display:none;" />
+            </div>
+            <div id="projectsList"></div>
+          </div>
+
+          <div class="tab" id="tab-templates">
+            <div id="templatesGrid" class="template-grid"></div>
+            <div class="hint">Loading a template replaces the scene and is fully undoable.</div>
+          </div>
+        </div>
+
+        <div id="status" class="status">Ready. Click a part, hover the studs, and build.</div>
+      </div>
+    </aside>
+
+    <div id="floatingHud">
+      <div class="hud-card" id="statsHud"><strong>0</strong> selected • <strong>0</strong> bricks • <strong>0</strong> undo</div>
+      <div class="hud-card">Shortcuts: <span class="mono">Q/E</span> rotate, <span class="mono">Shift+Drag</span> box select, <span class="mono">Cmd/Ctrl+C/V</span> copy/paste, <span class="mono">Del</span> delete, <span class="mono">Cmd/Ctrl+Z/Y</span> undo/redo, <span class="mono">Right Drag</span> rotate ghost.</div>
+    </div>
+
+    <div id="selectionBox"></div>
+  </div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/"
+      }
+    }
+  </script>
+
+  <script type="module">
+    import * as THREE from "three";
+    import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+    import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
+    import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+
+    const STUD = 1;
+    const PLATE = 0.4;
+    const STUD_RADIUS = 0.24;
+    const STUD_HEIGHT = 0.16;
+    const EPS = 1e-4;
+    const STORAGE_KEY = "lego_editor_projects_v1";
+
+    const ui = {
+      canvas: document.getElementById("viewport"),
+      panel: document.getElementById("panel"),
+      collapseBtn: document.getElementById("collapseBtn"),
+      toolPlace: document.getElementById("toolPlace"),
+      toolPaint: document.getElementById("toolPaint"),
+      toolSelect: document.getElementById("toolSelect"),
+      undoBtn: document.getElementById("undoBtn"),
+      redoBtn: document.getElementById("redoBtn"),
+      copyBtn: document.getElementById("copyBtn"),
+      pasteBtn: document.getElementById("pasteBtn"),
+      deleteBtn: document.getElementById("deleteBtn"),
+      rotateLeftBtn: document.getElementById("rotateLeftBtn"),
+      rotateRightBtn: document.getElementById("rotateRightBtn"),
+      gridSnapToggle: document.getElementById("gridSnapToggle"),
+      angleSnapToggle: document.getElementById("angleSnapToggle"),
+      baseplateSelect: document.getElementById("baseplateSelect"),
+      clearBtn: document.getElementById("clearBtn"),
+      swatches: document.getElementById("swatches"),
+      partSearch: document.getElementById("partSearch"),
+      partCategory: document.getElementById("partCategory"),
+      partsGrid: document.getElementById("partsGrid"),
+      activePartName: document.getElementById("activePartName"),
+      strictBadge: document.getElementById("strictBadge"),
+      status: document.getElementById("status"),
+      tabButtons: Array.from(document.querySelectorAll(".tab-btn")),
+      tabs: {
+        parts: document.getElementById("tab-parts"),
+        projects: document.getElementById("tab-projects"),
+        templates: document.getElementById("tab-templates")
+      },
+      saveName: document.getElementById("saveName"),
+      saveProjectBtn: document.getElementById("saveProjectBtn"),
+      projectsList: document.getElementById("projectsList"),
+      exportJsonBtn: document.getElementById("exportJsonBtn"),
+      importJsonBtn: document.getElementById("importJsonBtn"),
+      importJsonInput: document.getElementById("importJsonInput"),
+      templatesGrid: document.getElementById("templatesGrid"),
+      selectionBox: document.getElementById("selectionBox"),
+      brickCountLabel: document.getElementById("brickCountLabel"),
+      statsHud: document.getElementById("statsHud")
+    };
+
+    const renderer = new THREE.WebGLRenderer({
+      canvas: ui.canvas,
+      antialias: true,
+      alpha: false,
+      preserveDrawingBuffer: true
+    });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.06;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xe8f1ff);
+    scene.fog = new THREE.Fog(0xe8f1ff, 45, 175);
+
+    const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 500);
+    camera.position.set(22, 24, 30);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 4, 0);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.075;
+    controls.minDistance = 6;
+    controls.maxDistance = 150;
+    controls.maxPolarAngle = Math.PI * 0.495;
+    controls.zoomSpeed = 0.8;
+
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    scene.environment = pmrem.fromScene(new RoomEnvironment(renderer), 0.03).texture;
+
+    const hemi = new THREE.HemisphereLight(0xffffff, 0xbdd0ef, 0.74);
+    scene.add(hemi);
+
+    const dir = new THREE.DirectionalLight(0xffffff, 1.1);
+    dir.position.set(24, 35, 14);
+    dir.castShadow = true;
+    dir.shadow.mapSize.set(2048, 2048);
+    dir.shadow.camera.left = -60;
+    dir.shadow.camera.right = 60;
+    dir.shadow.camera.top = 60;
+    dir.shadow.camera.bottom = -60;
+    dir.shadow.camera.near = 1;
+    dir.shadow.camera.far = 140;
+    dir.shadow.radius = 2.4;
+    scene.add(dir);
+
+    const fill = new THREE.DirectionalLight(0xffffff, 0.32);
+    fill.position.set(-22, 18, -24);
+    scene.add(fill);
+
+    const raycaster = new THREE.Raycaster();
+    const pointerNdc = new THREE.Vector2();
+
+    let baseplateSize = 32;
+    let baseplateGroup = null;
+    let baseplateHit = null;
+    let gridLines = null;
+
+    const parts = new Map();
+    const partGroups = {
+      favorites: [],
+      brick: [],
+      plate: [],
+      tile: [],
+      slope: [],
+      technic: [],
+      minifig: [],
+      all: []
+    };
+
+    const LEGO_COLORS = [
+      { name: "White", hex: 0xf4f4f4 },
+      { name: "Black", hex: 0x111217 },
+      { name: "Light Bluish Gray", hex: 0xa9b3bd },
+      { name: "Dark Bluish Gray", hex: 0x5e666f },
+      { name: "Bright Red", hex: 0xc91a09 },
+      { name: "Dark Red", hex: 0x720012 },
+      { name: "Bright Blue", hex: 0x0055bf },
+      { name: "Dark Blue", hex: 0x143044 },
+      { name: "Bright Yellow", hex: 0xf2cd37 },
+      { name: "Bright Orange", hex: 0xfe8a18 },
+      { name: "Bright Light Orange", hex: 0xf8bb3d },
+      { name: "Bright Green", hex: 0x2e9e45 },
+      { name: "Dark Green", hex: 0x184632 },
+      { name: "Lime", hex: 0xa3d94c },
+      { name: "Sand Green", hex: 0x84b68d },
+      { name: "Sand Blue", hex: 0x607486 },
+      { name: "Medium Azure", hex: 0x42c0fb },
+      { name: "Reddish Brown", hex: 0x6a3f24 },
+      { name: "Brown", hex: 0x4b2d1f },
+      { name: "Tan", hex: 0xe4cd9e },
+      { name: "Dark Tan", hex: 0x9f825f },
+      { name: "Dark Purple", hex: 0x3f2a56 },
+      { name: "Bright Pink", hex: 0xff78b0 },
+      { name: "Magenta", hex: 0xa00068 },
+      { name: "Pearl Gold", hex: 0xaa7f2e }
+    ];
+
+    const colorMap = new Map(LEGO_COLORS.map((c) => [c.name, c.hex]));
+
+    let activeColor = "Bright Red";
+    let activePartId = "brick-2x4";
+    let tool = "place";
+    let gridSnap = true;
+    let angleSnap = true;
+
+    let pointerInside = false;
+    let lastPointerClient = { x: window.innerWidth * 0.5, y: window.innerHeight * 0.5 };
+
+    const bricks = [];
+    const brickById = new Map();
+    let nextBrickId = 1;
+
+    const selectedIds = new Set();
+    let hoveredBrickId = null;
+    let copiedPayload = null;
+
+    const undoStack = [];
+    const redoStack = [];
+
+    let ghostRotation = 0;
+    let ghost = null;
+    let ghostColorMaterials = [];
+    const ghostState = {
+      visible: false,
+      valid: false,
+      reason: "",
+      cx: 0,
+      cz: 0,
+      y: 0,
+      rot: 0,
+      strict: true
+    };
+
+    let rotatingGhost = false;
+    let rotateAccum = 0;
+
+    let boxSelecting = false;
+    let boxStart = { x: 0, y: 0 };
+
+    const wobbleAnimations = [];
+    const poofBursts = [];
+
+    let audioCtx = null;
+    let lastTs = performance.now();
+
+    const tmpVec3 = new THREE.Vector3();
+
+    const geometryCache = new Map();
+    const studGeometry = new THREE.CylinderGeometry(STUD_RADIUS, STUD_RADIUS, STUD_HEIGHT, 24);
+
+    init();
+
+    function init() {
+      registerAllParts();
+      buildBaseplate(baseplateSize);
+      buildColorSwatches();
+      buildPartList();
+      buildTemplates();
+      setActivePart(activePartId);
+      setTool("place");
+      renderProjectsList();
+      refreshHistoryButtons();
+      refreshCounts();
+      refreshStrictBadge();
+
+      attachEvents();
+
+      window.addEventListener("resize", onResize);
+      onResize();
+      animate();
+      setStatus("Ready. Place mode uses true stud-to-tube validation while snap toggles are on.");
+    }
+
+    function registerPart(def, isFavorite = false) {
+      if (parts.has(def.id)) {
+        return def.id;
+      }
+      parts.set(def.id, def);
+      if (!partGroups[def.group]) {
+        partGroups[def.group] = [];
+      }
+      partGroups[def.group].push(def.id);
+      partGroups.all.push(def.id);
+      if (isFavorite) {
+        partGroups.favorites.push(def.id);
+      }
+      return def.id;
+    }
+
+    function rectPart(kind, w, d) {
+      const h = kind === "brick" ? 3 : 1;
+      const topStuds = kind !== "tile";
+      const label = kind[0].toUpperCase() + kind.slice(1);
+      return {
+        id: `${kind}-${w}x${d}`,
+        name: `${label} ${w}x${d}`,
+        kind: "rect",
+        group: kind,
+        category: label,
+        w,
+        d,
+        h,
+        topStuds,
+        undersideTubes: true
+      };
+    }
+
+    function registerAllParts() {
+      for (const kind of ["brick", "plate", "tile"]) {
+        for (let w = 1; w <= 16; w += 1) {
+          for (let d = 1; d <= 16; d += 1) {
+            const id = registerPart(rectPart(kind, w, d), false);
+            if ((w <= 4 && d <= 4) || (w === 2 && d <= 10) || (w === 8 && d === 8) || (w === 16 && d === 16) || (w === 1 && d <= 8)) {
+              if (!partGroups.favorites.includes(id)) {
+                partGroups.favorites.push(id);
+              }
+            }
+          }
+        }
+      }
+
+      registerPart(
+        {
+          id: "slope-2x2",
+          name: "Slope 2x2",
+          kind: "slope",
+          group: "slope",
+          category: "Slope",
+          w: 2,
+          d: 2,
+          h: 3,
+          topStuds: false,
+          undersideTubes: true
+        },
+        true
+      );
+      registerPart(
+        {
+          id: "slope-2x3",
+          name: "Slope 2x3",
+          kind: "slope",
+          group: "slope",
+          category: "Slope",
+          w: 2,
+          d: 3,
+          h: 3,
+          topStuds: false,
+          undersideTubes: true
+        },
+        true
+      );
+      registerPart(
+        {
+          id: "slope-2x4",
+          name: "Slope 2x4",
+          kind: "slope",
+          group: "slope",
+          category: "Slope",
+          w: 2,
+          d: 4,
+          h: 3,
+          topStuds: false,
+          undersideTubes: true
+        },
+        true
+      );
+      registerPart(
+        {
+          id: "cheese-1x2",
+          name: "Cheese Slope 1x2",
+          kind: "slope",
+          group: "slope",
+          category: "Slope",
+          w: 1,
+          d: 2,
+          h: 1,
+          topStuds: false,
+          undersideTubes: true
+        },
+        true
+      );
+
+      for (const len of [2, 4, 6, 8, 10, 12, 16]) {
+        registerPart(
+          {
+            id: `technic-1x${len}`,
+            name: `Technic Brick 1x${len}`,
+            kind: "technic",
+            group: "technic",
+            category: "Technic",
+            w: 1,
+            d: len,
+            h: 3,
+            topStuds: true,
+            undersideTubes: true
+          },
+          len <= 8
+        );
+      }
+      registerPart(
+        {
+          id: "technic-2x4",
+          name: "Technic Brick 2x4",
+          kind: "technic",
+          group: "technic",
+          category: "Technic",
+          w: 2,
+          d: 4,
+          h: 3,
+          topStuds: true,
+          undersideTubes: true
+        },
+        true
+      );
+
+      registerPart(
+        {
+          id: "minifig-legs",
+          name: "Minifig Legs",
+          kind: "minifig-legs",
+          group: "minifig",
+          category: "Minifig",
+          w: 1,
+          d: 1,
+          h: 4,
+          topStuds: true,
+          undersideTubes: true
+        },
+        true
+      );
+      registerPart(
+        {
+          id: "minifig-torso",
+          name: "Minifig Torso",
+          kind: "minifig-torso",
+          group: "minifig",
+          category: "Minifig",
+          w: 1,
+          d: 1,
+          h: 3,
+          topStuds: true,
+          undersideTubes: true
+        },
+        true
+      );
+      registerPart(
+        {
+          id: "minifig-head",
+          name: "Minifig Head",
+          kind: "minifig-head",
+          group: "minifig",
+          category: "Minifig",
+          w: 1,
+          d: 1,
+          h: 2,
+          topStuds: true,
+          undersideTubes: true
+        },
+        true
+      );
+      registerPart(
+        {
+          id: "minifig-helmet",
+          name: "Minifig Helmet",
+          kind: "minifig-helmet",
+          group: "minifig",
+          category: "Minifig",
+          w: 1,
+          d: 1,
+          h: 2,
+          topStuds: false,
+          undersideTubes: true
+        },
+        true
+      );
+      registerPart(
+        {
+          id: "minifig-cap",
+          name: "Minifig Cap",
+          kind: "minifig-cap",
+          group: "minifig",
+          category: "Minifig",
+          w: 1,
+          d: 1,
+          h: 1,
+          topStuds: false,
+          undersideTubes: true
+        },
+        false
+      );
+    }
+
+    function buildColorSwatches() {
+      ui.swatches.innerHTML = "";
+      for (const color of LEGO_COLORS) {
+        const button = document.createElement("button");
+        button.className = "swatch";
+        button.style.background = `#${color.hex.toString(16).padStart(6, "0")}`;
+        button.title = color.name;
+        if (color.name === activeColor) {
+          button.classList.add("active");
+        }
+        button.addEventListener("click", () => {
+          selectColor(color.name);
+        });
+        ui.swatches.appendChild(button);
+      }
+    }
+
+    function selectColor(name) {
+      if (!colorMap.has(name)) {
+        return;
+      }
+      activeColor = name;
+      buildColorSwatches();
+      updateGhostMaterialTint();
+
+      if (selectedIds.size > 0) {
+        const before = snapshotSceneString();
+        let changed = false;
+        for (const id of selectedIds) {
+          const brick = brickById.get(id);
+          if (!brick || brick.color === name) {
+            continue;
+          }
+          setBrickColor(brick, name);
+          changed = true;
+        }
+        if (changed) {
+          commitUndo(before);
+          setStatus(`Recolored ${selectedIds.size} selected part(s) to ${name}.`);
+          triggerFeedback("place", true);
+        }
+      }
+    }
+
+    function buildPartList() {
+      renderPartButtons();
+    }
+
+    function renderPartButtons() {
+      const category = ui.partCategory.value;
+      const search = ui.partSearch.value.trim().toLowerCase();
+
+      let ids = partGroups[category] || partGroups.all;
+      if (category === "all") {
+        ids = partGroups.all;
+      }
+      if (!ids) {
+        ids = partGroups.favorites;
+      }
+
+      if (search) {
+        ids = ids.filter((id) => {
+          const part = parts.get(id);
+          if (!part) {
+            return false;
+          }
+          return (
+            part.name.toLowerCase().includes(search) ||
+            part.id.toLowerCase().includes(search) ||
+            part.category.toLowerCase().includes(search)
+          );
+        });
+      }
+
+      ui.partsGrid.innerHTML = "";
+      const frag = document.createDocumentFragment();
+
+      for (const id of ids) {
+        const part = parts.get(id);
+        if (!part) {
+          continue;
+        }
+        const btn = document.createElement("button");
+        btn.className = `part-btn ${id === activePartId ? "active" : ""}`;
+        btn.draggable = true;
+        const displayName = part.name.startsWith(`${part.category} `) ? part.name.slice(part.category.length + 1) : part.name;
+        btn.innerHTML = `<span class="kind">${part.category}</span>${displayName}`;
+        btn.title = `${part.name} (${part.w}x${part.d}, ${part.h} plate${part.h > 1 ? "s" : ""})`;
+
+        btn.addEventListener("click", () => setActivePart(id));
+        btn.addEventListener("pointerdown", () => {
+          btn.classList.add("dragging");
+          setActivePart(id);
+        });
+        btn.addEventListener("pointerup", () => btn.classList.remove("dragging"));
+        btn.addEventListener("pointerleave", () => btn.classList.remove("dragging"));
+
+        btn.addEventListener("dragstart", (ev) => {
+          ev.dataTransfer.setData("text/plain", id);
+          setActivePart(id);
+        });
+
+        frag.appendChild(btn);
+      }
+
+      if (!ids.length) {
+        const empty = document.createElement("div");
+        empty.className = "hint";
+        empty.textContent = "No matching parts.";
+        ui.partsGrid.appendChild(empty);
+      } else {
+        ui.partsGrid.appendChild(frag);
+      }
+    }
+
+    function setActivePart(id) {
+      if (!parts.has(id)) {
+        return;
+      }
+      activePartId = id;
+      const part = parts.get(id);
+      ui.activePartName.textContent = part.name;
+      renderPartButtons();
+      rebuildGhost();
+      updateGhostPlacementFromPointer(lastPointerClient.x, lastPointerClient.y);
+    }
+
+    function buildTemplates() {
+      const templates = [
+        {
+          key: "car",
+          title: "Turbo Car",
+          subtitle: "Low, fast, and chunky racing style",
+          build: makeCarTemplate
+        },
+        {
+          key: "castle",
+          title: "Micro Castle",
+          subtitle: "Twin towers, gate, and battlements",
+          build: makeCastleTemplate
+        },
+        {
+          key: "spaceship",
+          title: "Nova Ship",
+          subtitle: "Sleek wings and bright cockpit",
+          build: makeSpaceshipTemplate
+        },
+        {
+          key: "robot",
+          title: "Guardian Bot",
+          subtitle: "Friendly biped with armored chest",
+          build: makeRobotTemplate
+        }
+      ];
+
+      ui.templatesGrid.innerHTML = "";
+      for (const t of templates) {
+        const card = document.createElement("div");
+        card.className = "template-card";
+        card.innerHTML = `<strong>${t.title}</strong><span>${t.subtitle}</span>`;
+        const btn = document.createElement("button");
+        btn.className = "tiny primary";
+        btn.textContent = "Load";
+        btn.addEventListener("click", () => {
+          const before = snapshotSceneString();
+          loadSceneData(t.build(), false);
+          commitUndo(before);
+          setStatus(`Loaded template: ${t.title}.`);
+        });
+        card.appendChild(btn);
+        ui.templatesGrid.appendChild(card);
+      }
+    }
+
+    function makeCarTemplate() {
+      const out = [];
+      const add = (partId, cx, y, cz, color, rot = 0) => out.push({ partId, cx, y, cz, rot, color });
+
+      add("plate-8x4", 0, 0, 0, "Black");
+      add("plate-6x2", 0, 1, 0, "Bright Red");
+      add("slope-2x2", 2, 1, -1, "Bright Red", Math.PI);
+      add("slope-2x2", -2, 1, -1, "Bright Red", Math.PI);
+      add("plate-2x2", 0, 2, 1, "Medium Azure");
+      add("brick-2x2", 3, 0, 2, "Black");
+      add("brick-2x2", -3, 0, 2, "Black");
+      add("brick-2x2", 3, 0, -2, "Black");
+      add("brick-2x2", -3, 0, -2, "Black");
+      add("tile-1x4", 0, 2, -1, "White");
+      add("plate-1x2", 0, 2, -2, "Bright Yellow");
+
+      return {
+        version: 1,
+        baseplateSize: 32,
+        bricks: out
+      };
+    }
+
+    function makeCastleTemplate() {
+      const out = [];
+      const add = (partId, cx, y, cz, color, rot = 0) => out.push({ partId, cx, y, cz, rot, color });
+
+      add("plate-12x12", 0, 0, 0, "Dark Green");
+
+      for (let y = 1; y <= 7; y += 1) {
+        add("brick-2x2", -4, y, -4, "Light Bluish Gray");
+        add("brick-2x2", 4, y, -4, "Light Bluish Gray");
+        add("brick-2x2", -4, y, 4, "Light Bluish Gray");
+        add("brick-2x2", 4, y, 4, "Light Bluish Gray");
+      }
+
+      for (let x = -2; x <= 2; x += 2) {
+        add("brick-2x2", x, 1, -4, "Dark Bluish Gray");
+        add("brick-2x2", x, 2, -4, "Dark Bluish Gray");
+      }
+
+      add("arch-gate", 0, 1, -4, "Dark Tan");
+      add("brick-6x2", 0, 3, -4, "Light Bluish Gray");
+      add("tile-2x2", -4, 8, -4, "Dark Bluish Gray");
+      add("tile-2x2", 4, 8, -4, "Dark Bluish Gray");
+      add("tile-2x2", -4, 8, 4, "Dark Bluish Gray");
+      add("tile-2x2", 4, 8, 4, "Dark Bluish Gray");
+
+      return {
+        version: 1,
+        baseplateSize: 32,
+        bricks: out
+      };
+    }
+
+    function makeSpaceshipTemplate() {
+      const out = [];
+      const add = (partId, cx, y, cz, color, rot = 0) => out.push({ partId, cx, y, cz, rot, color });
+
+      add("plate-10x4", 0, 0, 0, "Dark Bluish Gray");
+      add("plate-8x2", 0, 1, 0, "Sand Blue");
+      add("plate-2x8", -4, 0, 0, "Light Bluish Gray");
+      add("plate-2x8", 4, 0, 0, "Light Bluish Gray");
+      add("slope-2x4", 0, 1, -2, "Bright Blue", Math.PI);
+      add("slope-2x4", 0, 1, 2, "Bright Blue");
+      add("tile-2x2", 0, 2, 0, "Medium Azure");
+      add("brick-2x2", 0, 0, 4, "Dark Red");
+      add("cheese-1x2", 1.5, 1, 4, "Bright Orange");
+      add("cheese-1x2", -1.5, 1, 4, "Bright Orange");
+
+      return {
+        version: 1,
+        baseplateSize: 32,
+        bricks: out
+      };
+    }
+
+    function makeRobotTemplate() {
+      const out = [];
+      const add = (partId, cx, y, cz, color, rot = 0) => out.push({ partId, cx, y, cz, rot, color });
+
+      add("plate-8x6", 0, 0, 0, "Dark Tan");
+      add("brick-2x2", -2, 1, 0, "Dark Bluish Gray");
+      add("brick-2x2", 2, 1, 0, "Dark Bluish Gray");
+      add("brick-2x2", -2, 2, 0, "Dark Bluish Gray");
+      add("brick-2x2", 2, 2, 0, "Dark Bluish Gray");
+      add("brick-4x4", 0, 3, 0, "Light Bluish Gray");
+      add("plate-4x4", 0, 6, 0, "Light Bluish Gray");
+      add("minifig-head", 0, 7, 0, "Bright Yellow");
+      add("plate-1x4", -4, 4, 0, "Dark Bluish Gray", Math.PI * 0.5);
+      add("plate-1x4", 4, 4, 0, "Dark Bluish Gray", Math.PI * 0.5);
+      add("tile-2x2", 0, 4, -2, "Bright Red");
+      add("tile-2x2", 0, 4, 2, "Bright Blue");
+
+      return {
+        version: 1,
+        baseplateSize: 32,
+        bricks: out
+      };
+    }
+
+    function registerArchGatePart() {
+      if (parts.has("arch-gate")) {
+        return;
+      }
+      registerPart(
+        {
+          id: "arch-gate",
+          name: "Arch Gate 6x2",
+          kind: "arch",
+          group: "slope",
+          category: "Slope",
+          w: 6,
+          d: 2,
+          h: 4,
+          topStuds: true,
+          undersideTubes: true
+        },
+        false
+      );
+    }
+
+    registerArchGatePart();
+
+    function buildBaseplate(size) {
+      if (baseplateGroup) {
+        scene.remove(baseplateGroup);
+      }
+
+      baseplateGroup = new THREE.Group();
+      baseplateGroup.name = "baseplate";
+
+      const thickness = 0.26;
+      const baseGeo = new RoundedBoxGeometry(size, thickness, size, 4, 0.06);
+      const baseMat = new THREE.MeshPhysicalMaterial({
+        color: 0x2d9b4f,
+        roughness: 0.58,
+        metalness: 0.03,
+        clearcoat: 0.44,
+        clearcoatRoughness: 0.22
+      });
+      const baseMesh = new THREE.Mesh(baseGeo, baseMat);
+      baseMesh.position.y = -thickness * 0.5;
+      baseMesh.receiveShadow = true;
+      baseMesh.castShadow = false;
+      baseplateGroup.add(baseMesh);
+
+      const studMat = new THREE.MeshPhysicalMaterial({
+        color: 0x33b75c,
+        roughness: 0.41,
+        metalness: 0.02,
+        clearcoat: 0.86,
+        clearcoatRoughness: 0.08
+      });
+      const count = size * size;
+      const studs = new THREE.InstancedMesh(studGeometry, studMat, count);
+      studs.castShadow = true;
+      studs.receiveShadow = true;
+      const mat4 = new THREE.Matrix4();
+      let idx = 0;
+      for (let x = 0; x < size; x += 1) {
+        for (let z = 0; z < size; z += 1) {
+          const px = -size * 0.5 + x + 0.5;
+          const pz = -size * 0.5 + z + 0.5;
+          mat4.makeTranslation(px, STUD_HEIGHT * 0.5 - 0.005, pz);
+          studs.setMatrixAt(idx, mat4);
+          idx += 1;
+        }
+      }
+      studs.instanceMatrix.needsUpdate = true;
+      baseplateGroup.add(studs);
+
+      baseplateHit = new THREE.Mesh(
+        new THREE.PlaneGeometry(size, size),
+        new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false })
+      );
+      baseplateHit.rotation.x = -Math.PI * 0.5;
+      baseplateHit.position.y = 0.0007;
+      baseplateHit.userData.isBaseplate = true;
+      baseplateGroup.add(baseplateHit);
+
+      gridLines = createGridLines(size);
+      baseplateGroup.add(gridLines);
+
+      scene.add(baseplateGroup);
+      baseplateSize = size;
+
+      pruneBricksOutsideBounds();
+      updateGhostPlacementFromPointer(lastPointerClient.x, lastPointerClient.y);
+    }
+
+    function createGridLines(size) {
+      const coords = [];
+      for (let i = -size * 0.5; i <= size * 0.5; i += 1) {
+        coords.push(i, 0.0025, -size * 0.5, i, 0.0025, size * 0.5);
+        coords.push(-size * 0.5, 0.0025, i, size * 0.5, 0.0025, i);
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", new THREE.Float32BufferAttribute(coords, 3));
+      const mat = new THREE.LineBasicMaterial({ color: 0x2f7f58, transparent: true, opacity: 0.26 });
+      return new THREE.LineSegments(geo, mat);
+    }
+
+    function pruneBricksOutsideBounds() {
+      const half = baseplateSize * 0.5;
+      const toRemove = [];
+      for (const brick of bricks) {
+        const part = parts.get(brick.partId);
+        if (!part) {
+          continue;
+        }
+        const bounds = getBounds(brick, part);
+        if (bounds.minX < -half - EPS || bounds.maxX > half + EPS || bounds.minZ < -half - EPS || bounds.maxZ > half + EPS) {
+          toRemove.push(brick.id);
+        }
+      }
+      if (!toRemove.length) {
+        return;
+      }
+      for (const id of toRemove) {
+        removeBrickById(id);
+      }
+      setStatus(`Removed ${toRemove.length} brick(s) outside the new baseplate.`);
+    }
+
+    function makeLegoMaterial(hex, options = {}) {
+      return new THREE.MeshPhysicalMaterial({
+        color: hex,
+        roughness: options.roughness ?? 0.36,
+        metalness: options.metalness ?? 0.04,
+        clearcoat: options.clearcoat ?? 0.72,
+        clearcoatRoughness: options.clearcoatRoughness ?? 0.1,
+        transparent: options.transparent ?? false,
+        opacity: options.opacity ?? 1,
+        emissive: 0x000000,
+        emissiveIntensity: 0
+      });
+    }
+
+    function colorHex(name) {
+      return colorMap.get(name) ?? 0xffffff;
+    }
+
+    function cachedRoundedBox(w, h, d, radius = 0.08) {
+      const key = `rb:${w.toFixed(3)}:${h.toFixed(3)}:${d.toFixed(3)}:${radius.toFixed(3)}`;
+      if (!geometryCache.has(key)) {
+        const minDim = Math.min(w, h, d);
+        const r = Math.min(radius, minDim * 0.24);
+        geometryCache.set(key, new RoundedBoxGeometry(Math.max(0.01, w), Math.max(0.01, h), Math.max(0.01, d), 4, r));
+      }
+      return geometryCache.get(key);
+    }
+
+    function cachedSlopeGeometry(w, d, h) {
+      const key = `slope:${w}:${d}:${h}`;
+      if (!geometryCache.has(key)) {
+        const shape = new THREE.Shape();
+        shape.moveTo(-w * 0.5, 0);
+        shape.lineTo(w * 0.5, 0);
+        shape.lineTo(w * 0.5, h);
+        shape.lineTo(-w * 0.5, 0);
+        shape.closePath();
+
+        const geo = new THREE.ExtrudeGeometry(shape, {
+          depth: d,
+          bevelEnabled: false,
+          steps: 1,
+          curveSegments: 1
+        });
+        geo.translate(0, 0, -d * 0.5);
+        geo.computeVertexNormals();
+        geometryCache.set(key, geo);
+      }
+      return geometryCache.get(key);
+    }
+
+    function buildPartMesh(part, hex, ghostMode = false) {
+      const group = new THREE.Group();
+      group.name = part.id;
+
+      const bodyMat = makeLegoMaterial(hex, {
+        roughness: ghostMode ? 0.22 : 0.34,
+        clearcoat: ghostMode ? 0.92 : 0.74,
+        clearcoatRoughness: ghostMode ? 0.05 : 0.09,
+        transparent: ghostMode,
+        opacity: ghostMode ? 0.48 : 1
+      });
+      const studMat = makeLegoMaterial(hex, {
+        roughness: ghostMode ? 0.18 : 0.26,
+        clearcoat: ghostMode ? 1.0 : 0.92,
+        clearcoatRoughness: ghostMode ? 0.03 : 0.07,
+        transparent: ghostMode,
+        opacity: ghostMode ? 0.5 : 1
+      });
+
+      const detailMat = new THREE.MeshPhysicalMaterial({
+        color: 0x1d2532,
+        roughness: 0.38,
+        metalness: 0.14,
+        clearcoat: 0.2,
+        clearcoatRoughness: 0.35,
+        transparent: ghostMode,
+        opacity: ghostMode ? 0.35 : 1
+      });
+
+      const colorMaterials = [bodyMat, studMat];
+
+      const bodyW = part.w * STUD - 0.03;
+      const bodyD = part.d * STUD - 0.03;
+      const bodyH = part.h * PLATE - 0.02;
+
+      if (part.kind === "rect" || part.kind === "technic") {
+        const body = new THREE.Mesh(cachedRoundedBox(bodyW, bodyH, bodyD, 0.08), bodyMat);
+        body.position.y = bodyH * 0.5;
+        body.castShadow = true;
+        body.receiveShadow = true;
+        group.add(body);
+
+        if (part.kind === "technic") {
+          const holeRadius = Math.min(0.17, Math.min(part.w, part.d) * 0.15);
+          const holeGeo = new THREE.CylinderGeometry(holeRadius, holeRadius, part.d * STUD + 0.06, 18);
+          const holeCount = Math.max(1, Math.floor(part.w));
+          for (let i = 0; i < holeCount; i += 1) {
+            const hole = new THREE.Mesh(holeGeo, detailMat);
+            hole.rotation.x = Math.PI * 0.5;
+            hole.position.set(-part.w * 0.5 + i + 0.5, Math.max(0.18, bodyH * 0.54), 0);
+            group.add(hole);
+          }
+        }
+      } else if (part.kind === "slope") {
+        const slopeGeo = cachedSlopeGeometry(part.w * STUD - 0.03, part.d * STUD - 0.03, part.h * PLATE - 0.02);
+        const body = new THREE.Mesh(slopeGeo, bodyMat);
+        body.position.y = 0;
+        body.castShadow = true;
+        body.receiveShadow = true;
+        group.add(body);
+      } else if (part.kind === "arch") {
+        const body = new THREE.Mesh(cachedRoundedBox(bodyW, bodyH, bodyD, 0.08), bodyMat);
+        body.position.y = bodyH * 0.5;
+        body.castShadow = true;
+        body.receiveShadow = true;
+        group.add(body);
+
+        const cut = new THREE.Mesh(
+          cachedRoundedBox(part.w * 0.55, part.h * PLATE * 0.64, part.d * STUD + 0.02, 0.08),
+          detailMat
+        );
+        cut.position.y = part.h * PLATE * 0.35;
+        group.add(cut);
+      } else if (part.kind === "minifig-legs") {
+        const legW = 0.38;
+        const legH = part.h * PLATE - 0.02;
+        const legD = 0.42;
+        const left = new THREE.Mesh(cachedRoundedBox(legW, legH, legD, 0.06), bodyMat);
+        const right = new THREE.Mesh(cachedRoundedBox(legW, legH, legD, 0.06), bodyMat);
+        left.position.set(-0.23, legH * 0.5, 0);
+        right.position.set(0.23, legH * 0.5, 0);
+        left.castShadow = true;
+        right.castShadow = true;
+        group.add(left, right);
+      } else if (part.kind === "minifig-torso") {
+        const torso = new THREE.Mesh(cachedRoundedBox(0.86, part.h * PLATE - 0.02, 0.56, 0.1), bodyMat);
+        torso.position.y = (part.h * PLATE - 0.02) * 0.5;
+        torso.castShadow = true;
+        torso.receiveShadow = true;
+        group.add(torso);
+      } else if (part.kind === "minifig-head") {
+        const headBody = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.3, part.h * PLATE - 0.02, 24), bodyMat);
+        headBody.position.y = (part.h * PLATE - 0.02) * 0.5;
+        headBody.castShadow = true;
+        group.add(headBody);
+      } else if (part.kind === "minifig-helmet") {
+        const shell = new THREE.Mesh(new THREE.SphereGeometry(0.43, 24, 16, 0, Math.PI * 2, 0, Math.PI * 0.82), bodyMat);
+        shell.scale.y = 0.95;
+        shell.position.y = part.h * PLATE * 0.5;
+        shell.castShadow = true;
+        group.add(shell);
+      } else if (part.kind === "minifig-cap") {
+        const cap = new THREE.Mesh(cachedRoundedBox(0.82, part.h * PLATE - 0.02, 0.82, 0.12), bodyMat);
+        cap.position.y = (part.h * PLATE - 0.02) * 0.5;
+        cap.castShadow = true;
+        group.add(cap);
+      }
+
+      if (part.topStuds) {
+        const maxStuds = part.w * part.d;
+        const step = maxStuds > 64 ? 2 : 1;
+        for (let x = 0; x < part.w; x += step) {
+          for (let z = 0; z < part.d; z += step) {
+            const stud = new THREE.Mesh(studGeometry, studMat);
+            stud.position.set(-part.w * 0.5 + x + 0.5, part.h * PLATE + STUD_HEIGHT * 0.5 - 0.015, -part.d * 0.5 + z + 0.5);
+            stud.castShadow = true;
+            stud.receiveShadow = true;
+            group.add(stud);
+          }
+        }
+      }
+
+      if (!ghostMode && part.undersideTubes && part.w * part.d > 1 && part.w <= 8 && part.d <= 8) {
+        const tubeGeo = new THREE.CylinderGeometry(STUD_RADIUS * 0.72, STUD_RADIUS * 0.72, 0.13, 18);
+        for (let x = 0; x < part.w; x += 1) {
+          for (let z = 0; z < part.d; z += 1) {
+            const tube = new THREE.Mesh(tubeGeo, detailMat);
+            tube.position.set(-part.w * 0.5 + x + 0.5, 0.06, -part.d * 0.5 + z + 0.5);
+            group.add(tube);
+          }
+        }
+      }
+
+      for (const child of group.children) {
+        child.userData.pickable = true;
+      }
+
+      return { group, colorMaterials };
+    }
+
+    function rebuildGhost() {
+      if (ghost) {
+        scene.remove(ghost);
+      }
+
+      const part = parts.get(activePartId);
+      if (!part) {
+        ghost = null;
+        return;
+      }
+
+      const built = buildPartMesh(part, colorHex(activeColor), true);
+      ghost = built.group;
+      ghostColorMaterials = built.colorMaterials;
+      ghost.visible = false;
+      ghost.renderOrder = 4;
+      ghost.traverse((obj) => {
+        if (obj.isMesh) {
+          obj.castShadow = false;
+          obj.receiveShadow = false;
+        }
+      });
+      scene.add(ghost);
+      updateGhostMaterialTint();
+    }
+
+    function updateGhostMaterialTint() {
+      const base = new THREE.Color(colorHex(activeColor));
+      const hint = ghostState.valid ? new THREE.Color(0x49d887) : new THREE.Color(0xff6c6c);
+      const mix = ghostState.valid ? 0.3 : 0.35;
+      const final = base.clone().lerp(hint, mix);
+      for (const mat of ghostColorMaterials) {
+        mat.color.copy(final);
+        mat.emissive.set(ghostState.valid ? 0x1d6f45 : 0x7f2430);
+        mat.emissiveIntensity = 0.32;
+      }
+    }
+
+    function addBrick(data, wobble = true) {
+      const part = parts.get(data.partId);
+      if (!part) {
+        return null;
+      }
+      const built = buildPartMesh(part, colorHex(data.color), false);
+      const brick = {
+        id: nextBrickId++,
+        partId: data.partId,
+        color: data.color,
+        cx: data.cx,
+        cz: data.cz,
+        y: data.y,
+        rot: normalizeAngle(data.rot ?? 0),
+        group: built.group,
+        colorMaterials: built.colorMaterials
+      };
+
+      brick.group.userData.brickId = brick.id;
+      brick.group.userData.baseY = brick.y * PLATE;
+      updateBrickTransform(brick);
+      scene.add(brick.group);
+
+      bricks.push(brick);
+      brickById.set(brick.id, brick);
+
+      if (wobble) {
+        wobbleAnimations.push({ brickId: brick.id, age: 0, life: 0.3 });
+      }
+
+      return brick;
+    }
+
+    function updateBrickTransform(brick) {
+      brick.group.position.set(brick.cx * STUD, brick.y * PLATE, brick.cz * STUD);
+      brick.group.rotation.y = brick.rot;
+      brick.group.userData.baseY = brick.y * PLATE;
+    }
+
+    function setBrickColor(brick, colorName) {
+      brick.color = colorName;
+      const hex = colorHex(colorName);
+      for (const mat of brick.colorMaterials) {
+        mat.color.setHex(hex);
+      }
+      applySelectionHighlight();
+    }
+
+    function removeBrickById(id) {
+      const brick = brickById.get(id);
+      if (!brick) {
+        return false;
+      }
+
+      selectedIds.delete(id);
+      if (hoveredBrickId === id) {
+        hoveredBrickId = null;
+      }
+
+      scene.remove(brick.group);
+      brick.group.traverse((obj) => {
+        if (obj.isMesh && obj.material) {
+          if (Array.isArray(obj.material)) {
+            for (const m of obj.material) m.dispose();
+          } else {
+            obj.material.dispose();
+          }
+        }
+      });
+
+      const idx = bricks.findIndex((b) => b.id === id);
+      if (idx >= 0) {
+        bricks.splice(idx, 1);
+      }
+      brickById.delete(id);
+      return true;
+    }
+
+    function clearAllBricks(spawnPoofs = false) {
+      const ids = bricks.map((b) => b.id);
+      for (const id of ids) {
+        const brick = brickById.get(id);
+        if (spawnPoofs && brick) {
+          tmpVec3.set(brick.group.position.x, brick.group.position.y + parts.get(brick.partId).h * PLATE * 0.5, brick.group.position.z);
+          spawnPoof(tmpVec3, colorHex(brick.color));
+        }
+        removeBrickById(id);
+      }
+      selectedIds.clear();
+      applySelectionHighlight();
+      refreshCounts();
+    }
+
+    function buildPickTargets() {
+      const targets = [];
+      if (baseplateHit) {
+        targets.push(baseplateHit);
+      }
+      for (const brick of bricks) {
+        targets.push(brick.group);
+      }
+      return targets;
+    }
+
+    function getBrickFromHitObject(object) {
+      let o = object;
+      while (o) {
+        if (o.userData && o.userData.brickId) {
+          return brickById.get(o.userData.brickId) || null;
+        }
+        o = o.parent;
+      }
+      return null;
+    }
+
+    function getHit(clientX, clientY) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointerNdc.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+      pointerNdc.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointerNdc, camera);
+      const hits = raycaster.intersectObjects(buildPickTargets(), true);
+      if (!hits.length) {
+        return null;
+      }
+      for (const hit of hits) {
+        if (!hit.object.visible) {
+          continue;
+        }
+        return hit;
+      }
+      return null;
+    }
+
+    function normalizeAngle(rad) {
+      let a = rad;
+      while (a > Math.PI) a -= Math.PI * 2;
+      while (a < -Math.PI) a += Math.PI * 2;
+      return a;
+    }
+
+    function orthogonalQuarter(rot) {
+      return Math.round(rot / (Math.PI * 0.5));
+    }
+
+    function isOrthogonal(rot) {
+      const q = rot / (Math.PI * 0.5);
+      return Math.abs(q - Math.round(q)) < 1e-3;
+    }
+
+    function snappedRotationForPreview() {
+      const step = angleSnap ? Math.PI * 0.5 : Math.PI / 12;
+      return Math.round(ghostRotation / step) * step;
+    }
+
+    function strictPlacementMode(rot) {
+      return gridSnap && isOrthogonal(rot);
+    }
+
+    function orientedDims(part, rot) {
+      if (isOrthogonal(rot)) {
+        const q = ((orthogonalQuarter(rot) % 4) + 4) % 4;
+        if (q % 2 === 0) {
+          return { w: part.w, d: part.d };
+        }
+        return { w: part.d, d: part.w };
+      }
+
+      const c = Math.cos(rot);
+      const s = Math.sin(rot);
+      return {
+        w: Math.abs(part.w * c) + Math.abs(part.d * s),
+        d: Math.abs(part.w * s) + Math.abs(part.d * c)
+      };
+    }
+
+    function getBounds(pose, part) {
+      const dims = orientedDims(part, pose.rot);
+      return {
+        minX: pose.cx - dims.w * 0.5,
+        maxX: pose.cx + dims.w * 0.5,
+        minZ: pose.cz - dims.d * 0.5,
+        maxZ: pose.cz + dims.d * 0.5,
+        minY: pose.y,
+        maxY: pose.y + part.h
+      };
+    }
+
+    function overlaps3D(a, b) {
+      const x = a.minX < b.maxX - EPS && a.maxX > b.minX + EPS;
+      const z = a.minZ < b.maxZ - EPS && a.maxZ > b.minZ + EPS;
+      const y = a.minY < b.maxY - EPS && a.maxY > b.minY + EPS;
+      return x && y && z;
+    }
+
+    function getFootprintCells(pose, part) {
+      if (!isOrthogonal(pose.rot)) {
+        return null;
+      }
+      const dims = orientedDims(part, pose.rot);
+      const xMin = Math.round(pose.cx - dims.w * 0.5);
+      const zMin = Math.round(pose.cz - dims.d * 0.5);
+      const cells = [];
+      for (let x = 0; x < dims.w; x += 1) {
+        for (let z = 0; z < dims.d; z += 1) {
+          cells.push({ x: xMin + x, z: zMin + z });
+        }
+      }
+      return cells;
+    }
+
+    function hasStudSupport(pose, part) {
+      if (pose.y <= EPS) {
+        return true;
+      }
+      if (!part.undersideTubes) {
+        return false;
+      }
+
+      const cCells = getFootprintCells(pose, part);
+      if (!cCells || !cCells.length) {
+        return false;
+      }
+
+      const studSet = new Set();
+      for (const brick of bricks) {
+        const bPart = parts.get(brick.partId);
+        if (!bPart || !bPart.topStuds) {
+          continue;
+        }
+        const topY = brick.y + bPart.h;
+        if (Math.abs(topY - pose.y) > EPS) {
+          continue;
+        }
+        const cells = getFootprintCells(brick, bPart);
+        if (!cells) {
+          continue;
+        }
+        for (const c of cells) {
+          studSet.add(`${c.x},${c.z}`);
+        }
+      }
+
+      for (const c of cCells) {
+        if (studSet.has(`${c.x},${c.z}`)) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    function hasSurfaceSupport(pose, part) {
+      if (pose.y <= EPS) {
+        return true;
+      }
+
+      const cb = getBounds(pose, part);
+      for (const brick of bricks) {
+        const bPart = parts.get(brick.partId);
+        if (!bPart) {
+          continue;
+        }
+        const topY = brick.y + bPart.h;
+        if (Math.abs(topY - pose.y) > 0.03) {
+          continue;
+        }
+        const bb = getBounds(brick, bPart);
+        const overlapX = Math.min(cb.maxX, bb.maxX) - Math.max(cb.minX, bb.minX);
+        const overlapZ = Math.min(cb.maxZ, bb.maxZ) - Math.max(cb.minZ, bb.minZ);
+        if (overlapX > 0.2 && overlapZ > 0.2) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    function validatePose(pose, part, ignoredId = null) {
+      const half = baseplateSize * 0.5;
+      const bounds = getBounds(pose, part);
+      if (bounds.minX < -half - EPS || bounds.maxX > half + EPS || bounds.minZ < -half - EPS || bounds.maxZ > half + EPS) {
+        return { valid: false, reason: "Outside baseplate" };
+      }
+
+      for (const brick of bricks) {
+        if (brick.id === ignoredId) {
+          continue;
+        }
+        const bPart = parts.get(brick.partId);
+        if (!bPart) {
+          continue;
+        }
+        const bb = getBounds(brick, bPart);
+        if (overlaps3D(bounds, bb)) {
+          return { valid: false, reason: "Collision" };
+        }
+      }
+
+      if (pose.strict) {
+        if (!hasStudSupport(pose, part)) {
+          return { valid: false, reason: "No stud-to-tube support" };
+        }
+      } else if (!hasSurfaceSupport(pose, part)) {
+        return { valid: false, reason: "No support surface" };
+      }
+
+      return { valid: true, reason: pose.strict ? "Stud lock valid" : "Surface support valid" };
+    }
+
+    function updateGhostPlacementFromPointer(clientX, clientY) {
+      lastPointerClient.x = clientX;
+      lastPointerClient.y = clientY;
+
+      if (tool !== "place" || !ghost || !activePartId || !pointerInside) {
+        if (ghost) {
+          ghost.visible = false;
+        }
+        ghostState.visible = false;
+        return;
+      }
+
+      const hit = getHit(clientX, clientY);
+      if (!hit) {
+        ghost.visible = false;
+        ghostState.visible = false;
+        return;
+      }
+
+      const part = parts.get(activePartId);
+      if (!part) {
+        ghost.visible = false;
+        ghostState.visible = false;
+        return;
+      }
+
+      const previewRot = normalizeAngle(snappedRotationForPreview());
+      const strict = strictPlacementMode(previewRot);
+
+      let targetLayer = 0;
+      if (hit.object.userData && hit.object.userData.isBaseplate) {
+        targetLayer = 0;
+      } else {
+        const brick = getBrickFromHitObject(hit.object);
+        if (brick) {
+          const bPart = parts.get(brick.partId);
+          targetLayer = brick.y + (bPart ? bPart.h : 0);
+        }
+      }
+
+      const y = gridSnap ? Math.round(targetLayer) : Math.round(targetLayer * 4) / 4;
+
+      const gx = hit.point.x / STUD;
+      const gz = hit.point.z / STUD;
+
+      let cx;
+      let cz;
+      if (strict) {
+        const dims = orientedDims(part, previewRot);
+        const xMin = Math.round(gx - dims.w * 0.5);
+        const zMin = Math.round(gz - dims.d * 0.5);
+        cx = xMin + dims.w * 0.5;
+        cz = zMin + dims.d * 0.5;
+      } else {
+        const step = gridSnap ? 0.25 : 0.05;
+        cx = Math.round(gx / step) * step;
+        cz = Math.round(gz / step) * step;
+      }
+
+      const pose = {
+        cx,
+        cz,
+        y,
+        rot: previewRot,
+        strict
+      };
+
+      const check = validatePose(pose, part);
+
+      ghostState.visible = true;
+      ghostState.valid = check.valid;
+      ghostState.reason = check.reason;
+      ghostState.cx = pose.cx;
+      ghostState.cz = pose.cz;
+      ghostState.y = pose.y;
+      ghostState.rot = pose.rot;
+      ghostState.strict = strict;
+
+      ghost.position.set(pose.cx * STUD, pose.y * PLATE, pose.cz * STUD);
+      ghost.rotation.y = pose.rot;
+      ghost.visible = true;
+
+      updateGhostMaterialTint();
+      refreshStrictBadge();
+    }
+
+    function placeFromGhost() {
+      if (!ghostState.visible || !ghostState.valid || !activePartId) {
+        return;
+      }
+      const before = snapshotSceneString();
+      const brick = addBrick(
+        {
+          partId: activePartId,
+          color: activeColor,
+          cx: ghostState.cx,
+          cz: ghostState.cz,
+          y: ghostState.y,
+          rot: ghostState.rot
+        },
+        true
+      );
+      if (!brick) {
+        return;
+      }
+      commitUndo(before);
+      selectedIds.clear();
+      selectedIds.add(brick.id);
+      applySelectionHighlight();
+      refreshCounts();
+      triggerFeedback("place", false);
+      setStatus(`Placed ${parts.get(activePartId).name}. ${ghostState.reason}.`);
+      updateGhostPlacementFromPointer(lastPointerClient.x, lastPointerClient.y);
+    }
+
+    function rotateGhostBy(dir) {
+      const step = angleSnap ? Math.PI * 0.5 : Math.PI / 12;
+      ghostRotation = normalizeAngle(ghostRotation + step * dir);
+      updateGhostPlacementFromPointer(lastPointerClient.x, lastPointerClient.y);
+    }
+
+    function setTool(nextTool) {
+      tool = nextTool;
+      ui.toolPlace.classList.toggle("active", tool === "place");
+      ui.toolPaint.classList.toggle("active", tool === "paint");
+      ui.toolSelect.classList.toggle("active", tool === "select");
+      renderer.domElement.style.cursor = tool === "place" ? "crosshair" : tool === "paint" ? "copy" : "default";
+
+      if (tool !== "place" && ghost) {
+        ghost.visible = false;
+      }
+      setStatus(tool === "place" ? "Place mode: click to place. Right-drag or Q/E rotates." : tool === "paint" ? "Paint mode: click any brick to recolor instantly." : "Select mode: click or Shift+drag box to multi-select.");
+    }
+
+    function applySelectionHighlight() {
+      for (const brick of bricks) {
+        const selected = selectedIds.has(brick.id);
+        const hovered = hoveredBrickId === brick.id;
+        for (const mat of brick.colorMaterials) {
+          if (selected) {
+            mat.emissive.set(0x2f6dd2);
+            mat.emissiveIntensity = 0.33;
+          } else if (hovered && (tool === "paint" || tool === "select")) {
+            mat.emissive.set(0x3f95ff);
+            mat.emissiveIntensity = 0.16;
+          } else {
+            mat.emissive.set(0x000000);
+            mat.emissiveIntensity = 0;
+          }
+        }
+      }
+      refreshCounts();
+    }
+
+    function clearSelection() {
+      selectedIds.clear();
+      applySelectionHighlight();
+    }
+
+    function selectSingle(id, additive = false) {
+      if (!additive) {
+        selectedIds.clear();
+      }
+      if (id != null) {
+        if (additive && selectedIds.has(id)) {
+          selectedIds.delete(id);
+        } else {
+          selectedIds.add(id);
+        }
+      }
+      applySelectionHighlight();
+    }
+
+    function deleteSelection() {
+      if (!selectedIds.size) {
+        return;
+      }
+      const before = snapshotSceneString();
+      let removed = 0;
+      const ids = Array.from(selectedIds);
+      for (const id of ids) {
+        const brick = brickById.get(id);
+        if (!brick) {
+          continue;
+        }
+        tmpVec3.set(brick.group.position.x, brick.group.position.y + parts.get(brick.partId).h * PLATE * 0.5, brick.group.position.z);
+        spawnPoof(tmpVec3, colorHex(brick.color));
+        if (removeBrickById(id)) {
+          removed += 1;
+        }
+      }
+      if (!removed) {
+        return;
+      }
+      commitUndo(before);
+      selectedIds.clear();
+      applySelectionHighlight();
+      refreshCounts();
+      triggerFeedback("delete", false);
+      setStatus(`Deleted ${removed} brick(s).`);
+      updateGhostPlacementFromPointer(lastPointerClient.x, lastPointerClient.y);
+    }
+
+    function copySelection() {
+      if (!selectedIds.size) {
+        return;
+      }
+      const items = [];
+      for (const id of selectedIds) {
+        const brick = brickById.get(id);
+        if (!brick) {
+          continue;
+        }
+        items.push({
+          partId: brick.partId,
+          color: brick.color,
+          cx: brick.cx,
+          cz: brick.cz,
+          y: brick.y,
+          rot: brick.rot
+        });
+      }
+      if (!items.length) {
+        return;
+      }
+      const minX = Math.min(...items.map((b) => b.cx));
+      const minY = Math.min(...items.map((b) => b.y));
+      const minZ = Math.min(...items.map((b) => b.cz));
+
+      copiedPayload = {
+        base: { x: minX, y: minY, z: minZ },
+        items: items.map((b) => ({
+          ...b,
+          dx: b.cx - minX,
+          dy: b.y - minY,
+          dz: b.cz - minZ
+        }))
+      };
+
+      setStatus(`Copied ${items.length} brick(s).`);
+    }
+
+    function pasteSelection() {
+      if (!copiedPayload || !copiedPayload.items.length) {
+        return;
+      }
+
+      const anchor = ghostState.visible
+        ? { x: ghostState.cx, y: ghostState.y, z: ghostState.cz }
+        : { x: copiedPayload.base.x + 2, y: copiedPayload.base.y, z: copiedPayload.base.z + 2 };
+
+      const before = snapshotSceneString();
+      const placed = [];
+
+      for (const item of copiedPayload.items) {
+        const pose = {
+          partId: item.partId,
+          color: item.color,
+          cx: anchor.x + item.dx,
+          y: anchor.y + item.dy,
+          cz: anchor.z + item.dz,
+          rot: item.rot
+        };
+        const part = parts.get(pose.partId);
+        if (!part) {
+          continue;
+        }
+        const strict = strictPlacementMode(pose.rot) && Number.isInteger(pose.y);
+        const check = validatePose({ cx: pose.cx, cz: pose.cz, y: pose.y, rot: pose.rot, strict }, part);
+        if (!check.valid) {
+          continue;
+        }
+        const brick = addBrick(pose, true);
+        if (brick) {
+          placed.push(brick.id);
+        }
+      }
+
+      if (!placed.length) {
+        setStatus("Paste could not place any bricks at this location.");
+        return;
+      }
+
+      commitUndo(before);
+      selectedIds.clear();
+      for (const id of placed) {
+        selectedIds.add(id);
+      }
+      applySelectionHighlight();
+      refreshCounts();
+      triggerFeedback("place", true);
+      setStatus(`Pasted ${placed.length} brick(s).`);
+      updateGhostPlacementFromPointer(lastPointerClient.x, lastPointerClient.y);
+    }
+
+    function startBoxSelection(clientX, clientY) {
+      boxSelecting = true;
+      boxStart = { x: clientX, y: clientY };
+      ui.selectionBox.style.display = "block";
+      ui.selectionBox.style.left = `${clientX}px`;
+      ui.selectionBox.style.top = `${clientY}px`;
+      ui.selectionBox.style.width = "0px";
+      ui.selectionBox.style.height = "0px";
+      controls.enabled = false;
+    }
+
+    function updateBoxSelection(clientX, clientY) {
+      if (!boxSelecting) {
+        return;
+      }
+      const left = Math.min(boxStart.x, clientX);
+      const top = Math.min(boxStart.y, clientY);
+      const width = Math.abs(clientX - boxStart.x);
+      const height = Math.abs(clientY - boxStart.y);
+      ui.selectionBox.style.left = `${left}px`;
+      ui.selectionBox.style.top = `${top}px`;
+      ui.selectionBox.style.width = `${width}px`;
+      ui.selectionBox.style.height = `${height}px`;
+    }
+
+    function finishBoxSelection(clientX, clientY) {
+      if (!boxSelecting) {
+        return;
+      }
+      boxSelecting = false;
+      controls.enabled = true;
+      ui.selectionBox.style.display = "none";
+
+      const minX = Math.min(boxStart.x, clientX);
+      const maxX = Math.max(boxStart.x, clientX);
+      const minY = Math.min(boxStart.y, clientY);
+      const maxY = Math.max(boxStart.y, clientY);
+
+      if (Math.abs(maxX - minX) < 3 || Math.abs(maxY - minY) < 3) {
+        return;
+      }
+
+      const found = [];
+      const rect = renderer.domElement.getBoundingClientRect();
+
+      for (const brick of bricks) {
+        const part = parts.get(brick.partId);
+        if (!part) {
+          continue;
+        }
+        tmpVec3.set(brick.group.position.x, brick.group.position.y + part.h * PLATE * 0.5, brick.group.position.z).project(camera);
+        const sx = (tmpVec3.x * 0.5 + 0.5) * rect.width + rect.left;
+        const sy = (-tmpVec3.y * 0.5 + 0.5) * rect.height + rect.top;
+        if (sx >= minX && sx <= maxX && sy >= minY && sy <= maxY) {
+          found.push(brick.id);
+        }
+      }
+
+      if (found.length) {
+        selectedIds.clear();
+        for (const id of found) {
+          selectedIds.add(id);
+        }
+        applySelectionHighlight();
+        setStatus(`Selected ${found.length} brick(s).`);
+      }
+    }
+
+    function refreshCounts() {
+      ui.brickCountLabel.textContent = `${bricks.length} bricks`;
+      ui.statsHud.innerHTML = `<strong>${selectedIds.size}</strong> selected • <strong>${bricks.length}</strong> bricks • <strong>${undoStack.length}</strong> undo`;
+    }
+
+    function refreshHistoryButtons() {
+      ui.undoBtn.disabled = undoStack.length === 0;
+      ui.redoBtn.disabled = redoStack.length === 0;
+    }
+
+    function commitUndo(beforeStateString) {
+      undoStack.push(beforeStateString);
+      redoStack.length = 0;
+      refreshHistoryButtons();
+      refreshCounts();
+    }
+
+    function snapshotSceneObject() {
+      const bricksOut = bricks.map((brick) => ({
+        partId: brick.partId,
+        color: brick.color,
+        cx: brick.cx,
+        cz: brick.cz,
+        y: brick.y,
+        rot: brick.rot
+      }));
+
+      const usedIds = [...new Set(bricksOut.map((b) => b.partId))];
+      const catalog = usedIds.map((id) => parts.get(id)).filter(Boolean);
+
+      return {
+        version: 1,
+        baseplateSize,
+        settings: {
+          gridSnap,
+          angleSnap
+        },
+        partsCatalog: catalog,
+        bricks: bricksOut
+      };
+    }
+
+    function snapshotSceneString() {
+      return JSON.stringify(snapshotSceneObject());
+    }
+
+    function loadSceneData(data, keepHistory = true) {
+      if (!data || !Array.isArray(data.bricks)) {
+        throw new Error("Invalid project JSON.");
+      }
+
+      if (Array.isArray(data.partsCatalog)) {
+        for (const def of data.partsCatalog) {
+          if (def && def.id && !parts.has(def.id)) {
+            registerPart(def, false);
+          }
+        }
+      }
+
+      const nextBaseSize = Number(data.baseplateSize) || 32;
+      baseplateSize = Math.max(8, Math.min(64, nextBaseSize));
+      ui.baseplateSelect.value = String(baseplateSize);
+      buildBaseplate(baseplateSize);
+
+      clearAllBricks(false);
+
+      let maxId = 0;
+      for (const entry of data.bricks) {
+        if (!entry || !parts.has(entry.partId)) {
+          continue;
+        }
+        const brick = addBrick(
+          {
+            partId: entry.partId,
+            color: entry.color && colorMap.has(entry.color) ? entry.color : activeColor,
+            cx: Number(entry.cx) || 0,
+            cz: Number(entry.cz) || 0,
+            y: Number(entry.y) || 0,
+            rot: Number.isFinite(entry.rot) ? entry.rot : 0
+          },
+          false
+        );
+        if (brick) {
+          maxId = Math.max(maxId, brick.id);
+        }
+      }
+      nextBrickId = maxId + 1;
+
+      if (data.settings) {
+        gridSnap = !!data.settings.gridSnap;
+        angleSnap = !!data.settings.angleSnap;
+        ui.gridSnapToggle.checked = gridSnap;
+        ui.angleSnapToggle.checked = angleSnap;
+      }
+
+      clearSelection();
+      refreshStrictBadge();
+      refreshCounts();
+      if (!keepHistory) {
+        refreshHistoryButtons();
+      }
+      updateGhostPlacementFromPointer(lastPointerClient.x, lastPointerClient.y);
+    }
+
+    function undo() {
+      if (!undoStack.length) {
+        return;
+      }
+      const current = snapshotSceneString();
+      const prev = undoStack.pop();
+      redoStack.push(current);
+      loadSceneData(JSON.parse(prev), false);
+      refreshHistoryButtons();
+      setStatus("Undo.");
+    }
+
+    function redo() {
+      if (!redoStack.length) {
+        return;
+      }
+      const current = snapshotSceneString();
+      const next = redoStack.pop();
+      undoStack.push(current);
+      loadSceneData(JSON.parse(next), false);
+      refreshHistoryButtons();
+      setStatus("Redo.");
+    }
+
+    function getStoredProjects() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) {
+          return [];
+        }
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function setStoredProjects(list) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+    }
+
+    function captureThumbnail() {
+      renderer.render(scene, camera);
+      return renderer.domElement.toDataURL("image/jpeg", 0.74);
+    }
+
+    function saveProjectToLocal() {
+      const name = ui.saveName.value.trim() || `Build ${new Date().toLocaleString()}`;
+      const state = snapshotSceneObject();
+      const thumb = captureThumbnail();
+      const projects = getStoredProjects();
+      const project = {
+        id: `p_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        name,
+        updatedAt: new Date().toISOString(),
+        thumb,
+        state
+      };
+      projects.unshift(project);
+      setStoredProjects(projects.slice(0, 80));
+      renderProjectsList();
+      setStatus(`Saved project "${name}".`);
+    }
+
+    function renderProjectsList() {
+      const projects = getStoredProjects();
+      ui.projectsList.innerHTML = "";
+
+      if (!projects.length) {
+        const hint = document.createElement("div");
+        hint.className = "hint";
+        hint.textContent = "No saved projects yet.";
+        ui.projectsList.appendChild(hint);
+        return;
+      }
+
+      for (const project of projects) {
+        const card = document.createElement("div");
+        card.className = "project-card";
+
+        const thumb = document.createElement("img");
+        thumb.className = "project-thumb";
+        thumb.src = project.thumb;
+        thumb.alt = `${project.name} thumbnail`;
+
+        const meta = document.createElement("div");
+        meta.className = "project-meta";
+
+        const nm = document.createElement("div");
+        nm.className = "project-name";
+        nm.textContent = project.name;
+
+        const tm = document.createElement("div");
+        tm.className = "project-time";
+        tm.textContent = new Date(project.updatedAt).toLocaleString();
+
+        const row = document.createElement("div");
+        row.className = "row tight";
+        const loadBtn = document.createElement("button");
+        loadBtn.className = "tiny primary";
+        loadBtn.textContent = "Load";
+        loadBtn.addEventListener("click", () => {
+          const before = snapshotSceneString();
+          loadSceneData(project.state, false);
+          commitUndo(before);
+          setStatus(`Loaded project "${project.name}".`);
+        });
+
+        const delBtn = document.createElement("button");
+        delBtn.className = "tiny ghost";
+        delBtn.textContent = "Delete";
+        delBtn.addEventListener("click", () => {
+          const next = getStoredProjects().filter((p) => p.id !== project.id);
+          setStoredProjects(next);
+          renderProjectsList();
+          setStatus(`Deleted saved project "${project.name}".`);
+        });
+
+        row.append(loadBtn, delBtn);
+        meta.append(nm, tm, row);
+        card.append(thumb, meta);
+        ui.projectsList.appendChild(card);
+      }
+    }
+
+    function exportSceneJson() {
+      const data = snapshotSceneObject();
+      const text = JSON.stringify(data, null, 2);
+      const blob = new Blob([text], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `lego-project-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setStatus("Exported scene JSON.");
+    }
+
+    async function importSceneJson(file) {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const before = snapshotSceneString();
+      loadSceneData(parsed, false);
+      commitUndo(before);
+      setStatus(`Imported "${file.name}".`);
+    }
+
+    function spawnPoof(worldPos, hex) {
+      const count = 30;
+      const positions = new Float32Array(count * 3);
+      const velocities = new Array(count);
+
+      for (let i = 0; i < count; i += 1) {
+        positions[i * 3 + 0] = worldPos.x;
+        positions[i * 3 + 1] = worldPos.y;
+        positions[i * 3 + 2] = worldPos.z;
+
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.random() * Math.PI * 0.8;
+        const speed = 2.2 + Math.random() * 2.4;
+        velocities[i] = new THREE.Vector3(
+          Math.cos(theta) * Math.sin(phi) * speed,
+          Math.cos(phi) * speed * 0.8,
+          Math.sin(theta) * Math.sin(phi) * speed
+        );
+      }
+
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+      const mat = new THREE.PointsMaterial({
+        color: hex,
+        size: 0.16,
+        transparent: true,
+        opacity: 0.9,
+        depthWrite: false
+      });
+      const points = new THREE.Points(geo, mat);
+      scene.add(points);
+
+      poofBursts.push({ points, velocities, age: 0, life: 0.58 });
+    }
+
+    function updatePoofs(dt) {
+      for (let i = poofBursts.length - 1; i >= 0; i -= 1) {
+        const burst = poofBursts[i];
+        burst.age += dt;
+
+        const pos = burst.points.geometry.attributes.position;
+        for (let p = 0; p < burst.velocities.length; p += 1) {
+          const v = burst.velocities[p];
+          v.y -= 6.4 * dt;
+          v.multiplyScalar(0.985);
+
+          pos.array[p * 3 + 0] += v.x * dt;
+          pos.array[p * 3 + 1] += v.y * dt;
+          pos.array[p * 3 + 2] += v.z * dt;
+        }
+        pos.needsUpdate = true;
+
+        const alpha = Math.max(0, 1 - burst.age / burst.life);
+        burst.points.material.opacity = alpha;
+        burst.points.material.size = 0.12 + 0.11 * alpha;
+
+        if (burst.age >= burst.life) {
+          scene.remove(burst.points);
+          burst.points.geometry.dispose();
+          burst.points.material.dispose();
+          poofBursts.splice(i, 1);
+        }
+      }
+    }
+
+    function updateWobbles(dt) {
+      for (let i = wobbleAnimations.length - 1; i >= 0; i -= 1) {
+        const wobble = wobbleAnimations[i];
+        const brick = brickById.get(wobble.brickId);
+        if (!brick) {
+          wobbleAnimations.splice(i, 1);
+          continue;
+        }
+
+        wobble.age += dt;
+        const t = Math.min(1, wobble.age / wobble.life);
+
+        const amp = (1 - t) * 0.09;
+        const bounce = Math.sin(t * Math.PI * 1.2) * amp;
+        const squash = 1 + Math.sin(t * Math.PI * 2.2) * amp * 0.8;
+
+        brick.group.position.y = brick.group.userData.baseY + bounce;
+        brick.group.scale.set(1 + amp * 0.25, squash, 1 + amp * 0.25);
+
+        if (t >= 1) {
+          brick.group.position.y = brick.group.userData.baseY;
+          brick.group.scale.set(1, 1, 1);
+          wobbleAnimations.splice(i, 1);
+        }
+      }
+    }
+
+    function ensureAudio() {
+      if (!audioCtx) {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (Ctx) {
+          audioCtx = new Ctx();
+        }
+      }
+      if (audioCtx && audioCtx.state === "suspended") {
+        audioCtx.resume();
+      }
+    }
+
+    function playTone(type) {
+      if (!audioCtx) {
+        return;
+      }
+      const now = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = type === "delete" ? "sawtooth" : "triangle";
+      osc.frequency.setValueAtTime(type === "delete" ? 180 : 860, now);
+      osc.frequency.exponentialRampToValueAtTime(type === "delete" ? 95 : 620, now + 0.09);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(type === "delete" ? 0.035 : 0.042, now + 0.006);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.11);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(now);
+      osc.stop(now + 0.12);
+    }
+
+    function triggerFeedback(type = "place", silent = false) {
+      ensureAudio();
+      if (!silent) {
+        playTone(type);
+      }
+      if (navigator.vibrate) {
+        navigator.vibrate(type === "delete" ? 18 : 10);
+      }
+    }
+
+    function refreshStrictBadge() {
+      const strictNow = gridSnap && angleSnap;
+      ui.strictBadge.textContent = strictNow ? "Stud Snap: ON" : "Stud Snap: Relaxed";
+      ui.strictBadge.classList.toggle("ok", strictNow);
+      ui.strictBadge.classList.toggle("warn", !strictNow);
+    }
+
+    function setStatus(text) {
+      ui.status.textContent = text;
+    }
+
+    function pickBrick(clientX, clientY) {
+      const hit = getHit(clientX, clientY);
+      if (!hit) {
+        return null;
+      }
+      return getBrickFromHitObject(hit.object);
+    }
+
+    function attachEvents() {
+      ui.collapseBtn.addEventListener("click", () => {
+        ui.panel.classList.toggle("collapsed");
+        ui.collapseBtn.textContent = ui.panel.classList.contains("collapsed") ? "❯" : "❮";
+      });
+
+      ui.tabButtons.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          ui.tabButtons.forEach((b) => b.classList.remove("active"));
+          btn.classList.add("active");
+          const tab = btn.dataset.tab;
+          Object.entries(ui.tabs).forEach(([key, el]) => {
+            el.classList.toggle("active", key === tab);
+          });
+        });
+      });
+
+      ui.partSearch.addEventListener("input", renderPartButtons);
+      ui.partCategory.addEventListener("change", renderPartButtons);
+
+      ui.toolPlace.addEventListener("click", () => setTool("place"));
+      ui.toolPaint.addEventListener("click", () => setTool("paint"));
+      ui.toolSelect.addEventListener("click", () => setTool("select"));
+
+      ui.gridSnapToggle.addEventListener("change", () => {
+        gridSnap = ui.gridSnapToggle.checked;
+        refreshStrictBadge();
+        updateGhostPlacementFromPointer(lastPointerClient.x, lastPointerClient.y);
+      });
+      ui.angleSnapToggle.addEventListener("change", () => {
+        angleSnap = ui.angleSnapToggle.checked;
+        refreshStrictBadge();
+        updateGhostPlacementFromPointer(lastPointerClient.x, lastPointerClient.y);
+      });
+
+      ui.rotateLeftBtn.addEventListener("click", () => rotateGhostBy(-1));
+      ui.rotateRightBtn.addEventListener("click", () => rotateGhostBy(1));
+
+      ui.baseplateSelect.addEventListener("change", () => {
+        const nextSize = Number(ui.baseplateSelect.value);
+        if (nextSize === baseplateSize) {
+          return;
+        }
+        const before = snapshotSceneString();
+        buildBaseplate(nextSize);
+        commitUndo(before);
+        refreshCounts();
+        setStatus(`Baseplate switched to ${nextSize} x ${nextSize}.`);
+      });
+
+      ui.clearBtn.addEventListener("click", () => {
+        if (!bricks.length) {
+          return;
+        }
+        const before = snapshotSceneString();
+        clearAllBricks(true);
+        commitUndo(before);
+        triggerFeedback("delete", false);
+        setStatus("Scene cleared.");
+      });
+
+      ui.undoBtn.addEventListener("click", undo);
+      ui.redoBtn.addEventListener("click", redo);
+      ui.copyBtn.addEventListener("click", copySelection);
+      ui.pasteBtn.addEventListener("click", pasteSelection);
+      ui.deleteBtn.addEventListener("click", deleteSelection);
+
+      ui.saveProjectBtn.addEventListener("click", saveProjectToLocal);
+      ui.exportJsonBtn.addEventListener("click", exportSceneJson);
+      ui.importJsonBtn.addEventListener("click", () => ui.importJsonInput.click());
+      ui.importJsonInput.addEventListener("change", async () => {
+        const file = ui.importJsonInput.files?.[0];
+        if (!file) {
+          return;
+        }
+        try {
+          const before = snapshotSceneString();
+          await importSceneJson(file);
+          commitUndo(before);
+        } catch (err) {
+          setStatus(`Import failed: ${err.message}`);
+        } finally {
+          ui.importJsonInput.value = "";
+        }
+      });
+
+      ui.canvas.addEventListener("dragover", (ev) => {
+        ev.preventDefault();
+        pointerInside = true;
+        updateGhostPlacementFromPointer(ev.clientX, ev.clientY);
+      });
+      ui.canvas.addEventListener("drop", (ev) => {
+        ev.preventDefault();
+        const droppedId = ev.dataTransfer.getData("text/plain");
+        if (droppedId && parts.has(droppedId)) {
+          setActivePart(droppedId);
+        }
+        updateGhostPlacementFromPointer(ev.clientX, ev.clientY);
+      });
+
+      ui.canvas.addEventListener("pointerenter", (ev) => {
+        pointerInside = true;
+        updateGhostPlacementFromPointer(ev.clientX, ev.clientY);
+      });
+
+      ui.canvas.addEventListener("pointerleave", () => {
+        pointerInside = false;
+        hoveredBrickId = null;
+        applySelectionHighlight();
+        if (ghost) {
+          ghost.visible = false;
+        }
+      });
+
+      ui.canvas.addEventListener("pointerdown", (ev) => {
+        ensureAudio();
+        lastPointerClient = { x: ev.clientX, y: ev.clientY };
+
+        if (ev.button === 2 && tool === "place") {
+          rotatingGhost = true;
+          rotateAccum = 0;
+          controls.enabled = false;
+          ev.preventDefault();
+          return;
+        }
+
+        if (ev.shiftKey && ev.button === 0) {
+          startBoxSelection(ev.clientX, ev.clientY);
+          ev.preventDefault();
+          return;
+        }
+
+        if (ev.button !== 0) {
+          return;
+        }
+
+        if (tool === "place") {
+          placeFromGhost();
+        } else if (tool === "paint") {
+          const brick = pickBrick(ev.clientX, ev.clientY);
+          if (!brick) {
+            return;
+          }
+          if (brick.color === activeColor) {
+            return;
+          }
+          const before = snapshotSceneString();
+          setBrickColor(brick, activeColor);
+          commitUndo(before);
+          triggerFeedback("place", true);
+          setStatus(`Painted ${parts.get(brick.partId).name} ${activeColor}.`);
+        } else if (tool === "select") {
+          const brick = pickBrick(ev.clientX, ev.clientY);
+          selectSingle(brick ? brick.id : null, ev.ctrlKey || ev.metaKey);
+          setStatus(brick ? `Selected ${parts.get(brick.partId).name}.` : "Selection cleared.");
+        }
+      });
+
+      window.addEventListener("pointermove", (ev) => {
+        lastPointerClient = { x: ev.clientX, y: ev.clientY };
+
+        if (rotatingGhost && tool === "place") {
+          const dx = ev.movementX || 0;
+          if (angleSnap) {
+            rotateAccum += dx;
+            while (Math.abs(rotateAccum) >= 22) {
+              ghostRotation += Math.PI * 0.5 * Math.sign(rotateAccum);
+              rotateAccum -= 22 * Math.sign(rotateAccum);
+            }
+          } else {
+            ghostRotation += dx * 0.01;
+          }
+          ghostRotation = normalizeAngle(ghostRotation);
+          updateGhostPlacementFromPointer(ev.clientX, ev.clientY);
+          ev.preventDefault();
+          return;
+        }
+
+        if (boxSelecting) {
+          updateBoxSelection(ev.clientX, ev.clientY);
+          return;
+        }
+
+        if (pointerInside) {
+          updateGhostPlacementFromPointer(ev.clientX, ev.clientY);
+          const hovered = pickBrick(ev.clientX, ev.clientY);
+          hoveredBrickId = hovered ? hovered.id : null;
+          applySelectionHighlight();
+        }
+      });
+
+      window.addEventListener("pointerup", (ev) => {
+        if (rotatingGhost) {
+          rotatingGhost = false;
+          controls.enabled = true;
+        }
+        if (boxSelecting) {
+          finishBoxSelection(ev.clientX, ev.clientY);
+        }
+      });
+
+      window.addEventListener("keydown", (ev) => {
+        const tag = document.activeElement?.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") {
+          return;
+        }
+
+        const mod = ev.ctrlKey || ev.metaKey;
+
+        if (ev.key === "q" || ev.key === "Q") {
+          rotateGhostBy(-1);
+          ev.preventDefault();
+          return;
+        }
+        if (ev.key === "e" || ev.key === "E") {
+          rotateGhostBy(1);
+          ev.preventDefault();
+          return;
+        }
+
+        if (mod && (ev.key === "z" || ev.key === "Z")) {
+          if (ev.shiftKey) {
+            redo();
+          } else {
+            undo();
+          }
+          ev.preventDefault();
+          return;
+        }
+        if (mod && (ev.key === "y" || ev.key === "Y")) {
+          redo();
+          ev.preventDefault();
+          return;
+        }
+        if (mod && (ev.key === "c" || ev.key === "C")) {
+          copySelection();
+          ev.preventDefault();
+          return;
+        }
+        if (mod && (ev.key === "v" || ev.key === "V")) {
+          pasteSelection();
+          ev.preventDefault();
+          return;
+        }
+
+        if (ev.key === "Delete" || ev.key === "Backspace") {
+          deleteSelection();
+          ev.preventDefault();
+          return;
+        }
+      });
+
+      window.addEventListener("contextmenu", (ev) => {
+        ev.preventDefault();
+      });
+    }
+
+    function onResize() {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    }
+
+    function animate(ts = performance.now()) {
+      const dt = Math.min(0.06, (ts - lastTs) / 1000);
+      lastTs = ts;
+
+      controls.update();
+      updateWobbles(dt);
+      updatePoofs(dt);
+
+      renderer.render(scene, camera);
+      requestAnimationFrame(animate);
+    }
+  </script>
+</body>
+</html>
